@@ -224,6 +224,7 @@ prefer-ip6{COLON}		{ YDVAR(1, VAR_PREFER_IP6) }
 do-udp{COLON}			{ YDVAR(1, VAR_DO_UDP) }
 do-tcp{COLON}			{ YDVAR(1, VAR_DO_TCP) }
 tcp-upstream{COLON}		{ YDVAR(1, VAR_TCP_UPSTREAM) }
+prefer-tcp-upstream{COLON}	{ YDVAR(1, VAR_PREFER_TCP_UPSTREAM) }
 tcp-mss{COLON}			{ YDVAR(1, VAR_TCP_MSS) }
 outgoing-tcp-mss{COLON}		{ YDVAR(1, VAR_OUTGOING_TCP_MSS) }
 tcp-idle-timeout{COLON}		{ YDVAR(1, VAR_TCP_IDLE_TIMEOUT) }

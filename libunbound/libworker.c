@@ -856,7 +856,8 @@ struct outbound_entry* libworker_send_query(struct query_info* qinfo,
 		return NULL;
 	e->qstate = q;
 	e->qsent = outnet_serviced_query(w->back, qinfo, flags, dnssec,
-		want_dnssec, nocaps, q->env->cfg->tcp_upstream, ssl_upstream,
+		want_dnssec, nocaps, q->env->cfg->tcp_upstream, 
+		q->env->cfg->prefer_tcp_upstream, ssl_upstream,
 		tls_auth_name, addr, addrlen, zone, zonelen, q,
 		libworker_handle_service_reply, e, w->back->udp_buff, q->env);
 	if(!e->qsent) {

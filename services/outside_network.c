@@ -1415,7 +1415,7 @@ lookup_serviced(struct outside_network* outnet, sldns_buffer* buff, int dnssec,
 /** Create new serviced entry */
 static struct serviced_query*
 serviced_create(struct outside_network* outnet, sldns_buffer* buff, int dnssec,
-	int want_dnssec, int nocaps, int tcp_upstream, int ssl_upstream,
+	int want_dnssec, int nocaps, int tcp_upstream, int prefer_tcp_upstream, int ssl_upstream,
 	char* tls_auth_name, struct sockaddr_storage* addr, socklen_t addrlen,
 	uint8_t* zone, size_t zonelen, int qtype, struct edns_option* opt_list)
 {
@@ -1444,6 +1444,7 @@ serviced_create(struct outside_network* outnet, sldns_buffer* buff, int dnssec,
 	sq->want_dnssec = want_dnssec;
 	sq->nocaps = nocaps;
 	sq->tcp_upstream = tcp_upstream;
+	sq->prefer_tcp_upstream = prefer_tcp_upstream;
 	sq->ssl_upstream = ssl_upstream;
 	if(tls_auth_name) {
 		sq->tls_auth_name = strdup(tls_auth_name);
@@ -1868,6 +1869,32 @@ serviced_tcp_callback(struct comm_point* c, void* arg, int error,
 			log_err("out of memory noting rtt.");
 		}
 	    }
+	} else if (sq->prefer_tcp_upstream && (error == NETEVENT_TIMEOUT)) {
+		/* Fall back to UDP immediately rather than trying exponential
+		 * back off in this mode */
+		struct sldns_buffer* buff = sq->outnet->udp_buff;
+		struct timeval now = *sq->outnet->now_tv;
+
+		/* Update infra RTT as if this were a TCP exponential backoff
+		 * anyway; this should lower the preference for the use of
+		 * this server. */
+	        if(!infra_rtt_update(sq->outnet->infra, &sq->addr,
+		    sq->addrlen, sq->zone, sq->zonelen, sq->qtype,
+		    -1, sq->last_rtt, (time_t)now.tv_sec))
+		    log_err("out of memory in TCP exponential backoff.");
+
+		/* Copy the query back into the UDP buffer */
+		sldns_buffer_clear(buff);
+		sldns_buffer_write(buff, sq->qbuf, sq->qbuflen);
+		sldns_buffer_flip(buff);
+		sq->status = serviced_query_UDP_EDNS;
+		log_name_addr(VERB_ALGO, "try UDP", sq->qbuf+10,
+			&sq->addr, sq->addrlen);
+		if(!serviced_udp_send(sq, buff)) {
+			serviced_callbacks(sq, NETEVENT_CLOSED, c, rep);
+		}
+		
+		return 0;
 	}
 	/* insert address into reply info */
 	if(!rep) {
@@ -2084,16 +2111,20 @@ serviced_udp_callback(struct comm_point* c, void* arg, int error,
 	/* perform TC flag check and TCP fallback after updating our
 	 * cache entries for EDNS status and RTT times */
 	if(LDNS_TC_WIRE(sldns_buffer_begin(c->buffer))) {
-		/* fallback to TCP */
-		/* this discards partial UDP contents */
-		if(sq->status == serviced_query_UDP_EDNS ||
-			sq->status == serviced_query_UDP_EDNS_FRAG ||
-			sq->status == serviced_query_UDP_EDNS_fallback)
-			/* if we have unfinished EDNS_fallback, start again */
-			sq->status = serviced_query_TCP_EDNS;
-		else	sq->status = serviced_query_TCP;
-		serviced_tcp_initiate(sq, c->buffer);
-		return 0;
+		if (!sq->prefer_tcp_upstream) {
+			/* fallback to TCP */
+			/* this discards partial UDP contents */
+			if(sq->status == serviced_query_UDP_EDNS ||
+				sq->status == serviced_query_UDP_EDNS_FRAG ||
+				sq->status == serviced_query_UDP_EDNS_fallback)
+				/* if we have unfinished EDNS_fallback, start again */
+				sq->status = serviced_query_TCP_EDNS;
+			else	sq->status = serviced_query_TCP;
+			serviced_tcp_initiate(sq, c->buffer);
+			return 0;
+		} else {
+			log_err("Received truncated UDP response in prefer-tcp-upstream mode, cannot fall back to TCP");
+		}
 	}
 	/* yay! an answer */
 	serviced_callbacks(sq, error, c, rep);
@@ -2103,7 +2134,7 @@ serviced_udp_callback(struct comm_point* c, void* arg, int error,
 struct serviced_query* 
 outnet_serviced_query(struct outside_network* outnet,
 	struct query_info* qinfo, uint16_t flags, int dnssec, int want_dnssec,
-	int nocaps, int tcp_upstream, int ssl_upstream, char* tls_auth_name,
+	int nocaps, int tcp_upstream, int prefer_tcp_upstream, int ssl_upstream, char* tls_auth_name,
 	struct sockaddr_storage* addr, socklen_t addrlen, uint8_t* zone,
 	size_t zonelen, struct module_qstate* qstate,
 	comm_point_callback_type* callback, void* callback_arg, sldns_buffer* buff,
@@ -2126,7 +2157,7 @@ outnet_serviced_query(struct outside_network* outnet,
 	if(!sq) {
 		/* make new serviced query entry */
 		sq = serviced_create(outnet, buff, dnssec, want_dnssec, nocaps,
-			tcp_upstream, ssl_upstream, tls_auth_name, addr,
+			tcp_upstream, prefer_tcp_upstream, ssl_upstream, tls_auth_name, addr,
 			addrlen, zone, zonelen, (int)qinfo->qtype,
 			qstate->edns_opts_back_out);
 		if(!sq) {
@@ -2134,7 +2165,7 @@ outnet_serviced_query(struct outside_network* outnet,
 			return NULL;
 		}
 		/* perform first network action */
-		if(outnet->do_udp && !(tcp_upstream || ssl_upstream)) {
+		if(outnet->do_udp && !(tcp_upstream || prefer_tcp_upstream || ssl_upstream)) {
 			if(!serviced_udp_send(sq, buff)) {
 				(void)rbtree_delete(outnet->serviced, sq);
 				serviced_node_del(&sq->node, NULL);

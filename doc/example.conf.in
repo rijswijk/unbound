@@ -207,6 +207,10 @@ server:
 	# upstream connections use TCP only (and no UDP), "yes" or "no"
 	# useful for tunneling scenarios, default no.
 	# tcp-upstream: no
+	
+	# prefer the use of TCP for upstream connections, and only fall back
+	# to UDP if TCP fails, "yes" or "no", default yes
+	# prefer-tcp-upstream: no
 
 	# upstream connections also use UDP (even if do-udp is no).
 	# useful if if you want UDP upstream, but don't provide UDP downstream.

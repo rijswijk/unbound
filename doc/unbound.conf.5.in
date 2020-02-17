@@ -440,6 +440,11 @@ advertised timeout.
 Enable or disable whether the upstream queries use TCP only for transport.
 Default is no.  Useful in tunneling scenarios.
 .TP
+.B prefer\-tcp\-upstream: \fI<yes or no>
+Enable or disable whether upstream queries prefer the use of TCP for transport;
+this may reduce the risk of fragment-based cache poisoning attacks. Transport
+will fall back to UDP if TCP fails. Default is no.
+.TP
 .B udp\-upstream\-without\-downstream: \fI<yes or no>
 Enable udp upstream even if do-udp is no.  Default is no, and this does not
 change anything.  Useful for TLS service providers, that want no udp downstream

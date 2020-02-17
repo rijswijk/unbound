@@ -108,7 +108,7 @@ extern struct config_parser_state* cfg_parser;
 %token VAR_DEL_HOLDDOWN VAR_SO_RCVBUF VAR_EDNS_BUFFER_SIZE VAR_PREFETCH
 %token VAR_PREFETCH_KEY VAR_SO_SNDBUF VAR_SO_REUSEPORT VAR_HARDEN_BELOW_NXDOMAIN
 %token VAR_IGNORE_CD_FLAG VAR_LOG_QUERIES VAR_LOG_REPLIES VAR_LOG_LOCAL_ACTIONS
-%token VAR_TCP_UPSTREAM VAR_SSL_UPSTREAM
+%token VAR_TCP_UPSTREAM VAR_PREFER_TCP_UPSTREAM VAR_SSL_UPSTREAM
 %token VAR_SSL_SERVICE_KEY VAR_SSL_SERVICE_PEM VAR_SSL_PORT VAR_FORWARD_FIRST
 %token VAR_STUB_SSL_UPSTREAM VAR_FORWARD_SSL_UPSTREAM VAR_TLS_CERT_BUNDLE
 %token VAR_STUB_FIRST VAR_MINIMAL_RESPONSES VAR_RRSET_ROUNDROBIN
@@ -229,8 +229,8 @@ content_server: server_num_threads | server_verbosity | server_port |
 	server_del_holddown | server_keep_missing | server_so_rcvbuf |
 	server_edns_buffer_size | server_prefetch | server_prefetch_key |
 	server_so_sndbuf | server_harden_below_nxdomain | server_ignore_cd_flag |
-	server_log_queries | server_log_replies | server_tcp_upstream | server_ssl_upstream |
-	server_log_local_actions |
+	server_log_queries | server_log_replies | server_tcp_upstream | server_prefer_tcp_upstream |
+	server_ssl_upstream | server_log_local_actions |
 	server_ssl_service_key | server_ssl_service_pem | server_ssl_port |
 	server_minimal_responses | server_rrset_roundrobin | server_max_udp_size |
 	server_so_reuseport | server_delay_close |
@@ -846,6 +846,15 @@ server_tcp_upstream: VAR_TCP_UPSTREAM STRING_ARG
 		if(strcmp($2, "yes") != 0 && strcmp($2, "no") != 0)
 			yyerror("expected yes or no.");
 		else cfg_parser->cfg->tcp_upstream = (strcmp($2, "yes")==0);
+		free($2);
+	}
+	;
+server_prefer_tcp_upstream: VAR_PREFER_TCP_UPSTREAM STRING_ARG
+	{
+		OUTYY(("P(server_prefer_tcp_upstream:%s)\n", $2));
+		if(strcmp($2, "yes") != 0 && strcmp($2, "no") != 0)
+			yyerror("expected yes or no.");
+		else cfg_parser->cfg->prefer_tcp_upstream = (strcmp($2, "yes")==0);
 		free($2);
 	}
 	;

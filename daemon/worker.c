@@ -1970,7 +1970,7 @@ worker_send_query(struct query_info* qinfo, uint16_t flags, int dnssec,
 		return NULL;
 	e->qstate = q;
 	e->qsent = outnet_serviced_query(worker->back, qinfo, flags, dnssec,
-		want_dnssec, nocaps, q->env->cfg->tcp_upstream,
+		want_dnssec, nocaps, q->env->cfg->tcp_upstream, q->env->cfg->prefer_tcp_upstream,
 		ssl_upstream, tls_auth_name, addr, addrlen, zone, zonelen, q,
 		worker_handle_service_reply, e, worker->back->udp_buff, q->env);
 	if(!e->qsent) {
